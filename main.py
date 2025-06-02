@@ -67,6 +67,12 @@ tiempo_slider_handle = pygame.Rect(tiempo_slider_rect.x + 50, tiempo_slider_rect
 tiempo_slider_dragging = False
 tiempo_por_producto = 5  # Valor inicial
 
+# Slider para número de clientes
+cola_slider_rect = pygame.Rect(WIDTH - PANEL_WIDTH + 40, 340, 120, 10)
+cola_slider_handle = pygame.Rect(cola_slider_rect.x + 60, cola_slider_rect.y - 5, 10, 20)
+cola_slider_dragging = False
+cola_slider_value = 4  # Valor inicial para la capacidad máxima de cada cola
+
 #funcion para colorear imagen de cajero
 def tintar_imagen(imagen, color):
     copia = imagen.copy()
@@ -128,11 +134,24 @@ def dibujar_panel():
     valor_tiempo = font.render(str(tiempo_por_producto), True, BLACK)
     screen.blit(valor_tiempo, (tiempo_slider_rect.x + 40, tiempo_slider_rect.y + 20))
 
+    # ------------------ Slider para capacidad de cola -----------------------------------------
+    # Etiqueta para slider clientes
+    cola_label = font.render("Capacidad Cola", True, BLACK)
+    screen.blit(cola_label, (panel_rect.x + 35, 310))
+
+    # Dibuja la barra
+    pygame.draw.rect(screen, BLACK, cola_slider_rect)
+    pygame.draw.rect(screen, slider_color, cola_slider_handle)
+
+    # Mostrar el valor actual
+    valor_cola = font.render(str(cola_slider_value), True, BLACK)
+    screen.blit(valor_cola, (cola_slider_rect.x + 45, cola_slider_rect.y + 20))
+
+
 
 # Configuración de la simulación
 PRODUCT_RANGE = lambda: (1, producto_slider_value)
 CUSTOMER_SIZE = 30  # Tamaño de dibujado
-MAX_CLIENTES_EN_COLA = 8  # Tamaño máximo de la cola
 
 # Botones
 dynamic_button = pygame.Rect(50, 20, 90, 30)
@@ -146,12 +165,12 @@ tiempos_espera = []  # Lista para registrar tiempos de espera
 clientes_saliendo = []  # Lista para los clientes que salen
 intervalo_clientes = 1.5  # tiempo entre clientes (en segundos)
 tiempo_ultimo_cliente = time.time()
+clientes_rechazados = 0 # Contador de clientes rechazados
 
 # variables para el cronometro
 start_time = None
 paused_time = 0
 pause_start = None
-
 
 # Clases
 class Cliente:
@@ -193,7 +212,7 @@ class Cajero:
         self.ultimo_tiempo = time.time()
         self.x = 40 + (id * (CUSTOMER_SIZE + 50))  # Separación horizontal
         self.y = 130  # Todos en la misma línea
-        self.cola = deque(maxlen=MAX_CLIENTES_EN_COLA)  # Cola individual por cajero
+        self.cola = deque(maxlen=cola_slider_value)  # Cola individual por cajero
         self.color = CAJERO_COLORES[id]
         self.sprite = tintar_imagen(imagen_cajero_base, self.color)
 
@@ -233,37 +252,45 @@ class Cajero:
         else:
             self.atender_cliente()
 
-
 # Crear cajeros
 def crear_cajeros(n, clientes_existentes=None):
     nuevos_cajeros = [Cajero(i) for i in range(n)]
+    for c in nuevos_cajeros:
+        c.cola = deque(maxlen=cola_slider_value)
     if clientes_existentes:
         for cliente in clientes_existentes:
             cajero_con_menor_cola = min(nuevos_cajeros, key=lambda c: len(c.cola))
-            if len(cajero_con_menor_cola.cola) < MAX_CLIENTES_EN_COLA:
+            if len(cajero_con_menor_cola.cola) < cola_slider_value:
                 cajero_con_menor_cola.cola.append(cliente)
     return nuevos_cajeros
 
-
-# Generar clientes iniciales hasta el máximo permitido
+# Crear clientes
 def generar_cliente():
-    cliente = Cliente(random.randint(1, 1000))  # ID aleatorio o secuencial
-    # Filtrar solo cajeros disponibles (no ocupados y con espacio en cola)
-    cajeros_disponibles = [c for c in cajeros if not c.ocupado and len(c.cola) < MAX_CLIENTES_EN_COLA]
-    if not cajeros_disponibles:
-        # Si no hay disponibles, se asigna al que tenga la cola más corta
-        cajero_con_menor_cola = min(cajeros, key=lambda c: len(c.cola))
-    else:
-        # Si hay disponibles, se asigna al primero que cumpla
-        cajero_con_menor_cola = min(cajeros_disponibles, key=lambda c: len(c.cola))
-    if len(cajero_con_menor_cola.cola) < MAX_CLIENTES_EN_COLA:
-        index = len(cajero_con_menor_cola.cola)
-        cliente.x = cajero_con_menor_cola.x
-        cliente.y = cajero_con_menor_cola.y + 70 + index * (CUSTOMER_SIZE + 5)
+    global clientes_rechazados
+    cliente = Cliente(random.randint(1, 1000))
+
+    # 1. Cajeros libres y sin cola
+    for cajero in cajeros:
+        if not cajero.ocupado and len(cajero.cola) == 0:
+            cliente.x = cajero.x
+            cliente.y = cajero.y + 70
+            cliente.destino_x = cliente.x
+            cliente.destino_y = cliente.y
+            cajero.cola.append(cliente)
+            return
+
+    # 2. Cajeros con espacio
+    cajeros_con_espacio = [c for c in cajeros if len(c.cola) < cola_slider_value]
+    if cajeros_con_espacio:
+        cajero_destino = min(cajeros_con_espacio, key=lambda c: len(c.cola))
+        index = len(cajero_destino.cola)
+        cliente.x = cajero_destino.x
+        cliente.y = cajero_destino.y + 70 + index * (CUSTOMER_SIZE + 5)
         cliente.destino_x = cliente.x
         cliente.destino_y = cliente.y
-        cajero_con_menor_cola.cola.append(cliente)
-
+        cajero_destino.cola.append(cliente)
+    else:
+        clientes_rechazados += 1  # 3. Rechazar si todas las colas están llenas
 
 # Dibujar botones y contador
 def dibujar_botones():
@@ -280,6 +307,10 @@ def dibujar_botones():
 
     pygame.draw.rect(screen, boton_color, dynamic_button)
     pygame.draw.rect(screen, ALIZARIN if simulacion_activa else GRAY, stop_button)
+
+    #Muestra los clientes rechazados
+    rechazados_text = font.render(f"Clientes rechazados: {clientes_rechazados}", True, BLACK)
+    screen.blit(rechazados_text, (WIDTH - 450, 80))
 
     dynamic_text = font.render(boton_texto, True, BLACK)
     stop_text = font.render("Detener", True, BLACK)
@@ -399,6 +430,9 @@ while running:
                     producto_slider_dragging = True
                 if tiempo_slider_handle.collidepoint(event.pos):
                     tiempo_slider_dragging = True
+                if cola_slider_handle.collidepoint(event.pos):
+                    cola_slider_dragging = True
+
 
             # Boton dinamico
             if dynamic_button.collidepoint(event.pos):
@@ -425,6 +459,7 @@ while running:
             elif stop_button.collidepoint(event.pos):
                 simulacion_activa = False
                 simulacion_pausada = False
+                clientes_rechazados = 0 # Reinicia los clientes rechazados
                 clientes_atendidos = 0  # Reinicia los clientes atendidos
                 tiempos_espera = []  # Reinicia los tiempos de espera también
                 cajeros = []
@@ -436,6 +471,7 @@ while running:
             slider_dragging = False
             producto_slider_dragging = False
             tiempo_slider_dragging = False
+            cola_slider_dragging = False
 
         elif event.type == pygame.MOUSEMOTION:
             if slider_dragging:
@@ -455,6 +491,12 @@ while running:
                 tiempo_slider_handle.x = new_x
                 porcentaje = (tiempo_slider_handle.x - tiempo_slider_rect.x) / tiempo_slider_rect.width
                 tiempo_por_producto = max(1, min(10, round(1 + porcentaje * 9)))
+            if cola_slider_dragging:
+                new_x = min(max(event.pos[0], cola_slider_rect.x), cola_slider_rect.x + cola_slider_rect.width)
+                cola_slider_handle.x = new_x
+                porcentaje = (cola_slider_handle.x - cola_slider_rect.x) / cola_slider_rect.width
+                cola_slider_value = max(1, min(8, round(1 + porcentaje * 7)))
+
 
     pygame.display.flip()
     clock.tick(60)

@@ -9,3 +9,8 @@ Este proyecto es una simulación interactiva en Pygame que representa el comport
 
 ```bash
 py -m pip install -U pygame --user
+
+## 📦 Descargas
+
+Descomprimir y ejecutar
+[👉 Descarga directa (.zip)]([https://github.com/usuario/repositorio/releases/latest](https://github.com/sigaran/Q-simulation/releases/download/v1.0-beta/Q-Simulator.zip))

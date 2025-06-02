@@ -1,7 +1,20 @@
+import sys
+import os
 import pygame
 import random
 import time
 from collections import deque  # Para manejar la cola finita
+
+#Funcion para usar rutas relativas, sirve para usar recursos dentro del enterno de desarrollo como desde fuera como un ejecutable (pyinstaller)
+def resource_path(relative_path):
+    """Devuelve la ruta absoluta al recurso, compatible con PyInstaller."""
+    try:
+        # Cuando se ejecuta como .exe
+        base_path = sys._MEIPASS
+    except AttributeError:
+        # Cuando se ejecuta desde código fuente
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
 # Inicializar Pygame
 pygame.init()
@@ -12,9 +25,9 @@ screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Simulación de cola de clientes en supermercado")
 
 # carga de recursos
-imagen_cajero_base = pygame.image.load("assets/images/cajero.png").convert_alpha()
+imagen_cajero_base = pygame.image.load(resource_path("assets/images/cajero.png")).convert_alpha()
 imagen_cajero_base = pygame.transform.scale(imagen_cajero_base, (60, 60))  # Ajusta al tamaño
-imagen_cliente_base = pygame.image.load("assets/images/cliente.png").convert_alpha()
+imagen_cliente_base = pygame.image.load(resource_path("assets/images/cliente.png")).convert_alpha()
 imagen_cliente_base = pygame.transform.scale(imagen_cliente_base, (50, 50))  # Ajusta al tamaño
 
 # Colores

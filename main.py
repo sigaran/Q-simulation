@@ -169,6 +169,7 @@ CUSTOMER_SIZE = 30  # Tamaño de dibujado
 # Botones
 dynamic_button = pygame.Rect(50, 20, 90, 30)
 stop_button = pygame.Rect(160, 20, 80, 30)
+velocidad_button = pygame.Rect(260, 20, 110, 30)
 simulacion_activa = False
 simulacion_pausada = False
 
@@ -179,6 +180,7 @@ clientes_saliendo = []  # Lista para los clientes que salen
 intervalo_clientes = 1.5  # tiempo entre clientes (en segundos)
 tiempo_ultimo_cliente = time.time()
 clientes_rechazados = 0 # Contador de clientes rechazados
+velocidad_simulacion = 1  # velocidad de la somuacion, x1 por defecto
 
 # variables para el cronometro
 start_time = None
@@ -244,11 +246,12 @@ class Cajero:
         global clientes_atendidos, tiempos_espera
         if self.ocupado:
             now = time.time()
-            if now - self.ultimo_tiempo >= tiempo_por_producto:
+            if now - self.ultimo_tiempo >= tiempo_por_producto / velocidad_simulacion:
                 self.tiempo_restante -= tiempo_por_producto
                 if self.cliente_actual and self.cliente_actual.productos > 0:
                     self.cliente_actual.productos -= 1
                 self.ultimo_tiempo = now
+
             if self.tiempo_restante <= 0:
                 self.ocupado = False
                 if self.cliente_actual:
@@ -305,7 +308,7 @@ def generar_cliente():
     else:
         clientes_rechazados += 1  # 3. Rechazar si todas las colas están llenas
 
-# Dibujar botones y contador
+# Dibujar botones y contadores
 def dibujar_botones():
     # Para dinamizar texto iniciar-continuar-pausar y color del boton
     if not simulacion_activa:
@@ -318,16 +321,20 @@ def dibujar_botones():
         boton_texto = "Pausar"
         boton_color = CARROT
 
+    # Para dibujar botones
     pygame.draw.rect(screen, boton_color, dynamic_button)
     pygame.draw.rect(screen, ALIZARIN if simulacion_activa else GRAY, stop_button)
+    pygame.draw.rect(screen, EMERALD, velocidad_button)
 
     #Muestra los clientes rechazados
     rechazados_text = font.render(f"Clientes rechazados: {clientes_rechazados}", True, BLACK)
     screen.blit(rechazados_text, (WIDTH - 450, 80))
 
+    #Texto de los botones
     dynamic_text = font.render(boton_texto, True, BLACK)
     stop_text = font.render("Detener", True, BLACK)
     contador_text = font.render(f"Total clientes atendidos: {clientes_atendidos}", True, BLACK)
+    vel_text = font.render(f"Velocidad x{velocidad_simulacion}", True, BLACK)
 
     # promediar tiempos de espara para dibujar texto
     if tiempos_espera:
@@ -340,8 +347,10 @@ def dibujar_botones():
 
     promedio_text = font.render(f"Promedio de espera: {tiempo_formateado}", True, BLACK)
 
+    # Dibujando los botones
     screen.blit(dynamic_text, (dynamic_button.x + 5, dynamic_button.y + 5))
     screen.blit(stop_text, (stop_button.x + 10, stop_button.y + 5))
+    screen.blit(vel_text, (velocidad_button.x + 5, velocidad_button.y + 5))
     screen.blit(contador_text, (WIDTH - 450, 20))
     screen.blit(promedio_text, (WIDTH - 450, 50))
 
@@ -354,7 +363,7 @@ def dibujar_botones():
         minutos = int(tiempo_transcurrido) // 60
         segundos = int(tiempo_transcurrido) % 60
         cronometro_text = font.render(f"Tiempo: {minutos:02}:{segundos:02}", True, BLACK)
-        screen.blit(cronometro_text, (WIDTH - 750, 30))
+        screen.blit(cronometro_text, (WIDTH - 650, 25))
 
 
 # Bucle principal
@@ -376,9 +385,7 @@ while running:
     if simulacion_activa:
         if not simulacion_pausada:
             # Solo si no está pausada: generar clientes y actualizar cajeros
-            # if random.random() < 0.05:
-            #    generar_cliente()
-            if time.time() - tiempo_ultimo_cliente >= intervalo_clientes:
+            if time.time() - tiempo_ultimo_cliente >= intervalo_clientes / velocidad_simulacion:
                 generar_cliente()
                 tiempo_ultimo_cliente = time.time()
             for cajero in cajeros:
@@ -446,7 +453,6 @@ while running:
                 if cola_slider_handle.collidepoint(event.pos):
                     cola_slider_dragging = True
 
-
             # Boton dinamico
             if dynamic_button.collidepoint(event.pos):
                 if not simulacion_activa:
@@ -479,6 +485,12 @@ while running:
                 start_time = None
                 paused_time = 0
                 pause_start = None
+
+            # Boton de velocidad
+            elif velocidad_button.collidepoint(event.pos):
+                velocidad_simulacion += 1
+                if velocidad_simulacion > 5:
+                    velocidad_simulacion = 1  # Cicla entre 1x y 3x
 
         elif event.type == pygame.MOUSEBUTTONUP:
             slider_dragging = False

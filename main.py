@@ -86,6 +86,12 @@ cola_slider_handle = pygame.Rect(cola_slider_rect.x + 60, cola_slider_rect.y - 5
 cola_slider_dragging = False
 cola_slider_value = 4  # Valor inicial para la capacidad máxima de cada cola
 
+# Slider para la frecuencia de llegada de clientes
+frecuencia_slider_rect = pygame.Rect(WIDTH - PANEL_WIDTH + 40, 420, 120, 10)
+frecuencia_slider_handle = pygame.Rect(frecuencia_slider_rect.x + 60, frecuencia_slider_rect.y - 5, 10, 20)
+frecuencia_slider_dragging = False
+frecuencia_slider_value = 1.5
+
 #funcion para colorear imagen de cajero
 def tintar_imagen(imagen, color):
     copia = imagen.copy()
@@ -160,7 +166,18 @@ def dibujar_panel():
     valor_cola = font.render(str(cola_slider_value), True, BLACK)
     screen.blit(valor_cola, (cola_slider_rect.x + 45, cola_slider_rect.y + 20))
 
+    # ------------------ Slider para frecuencia de llegada -----------------------------------------
+    # Etiqueta para frecuencia
+    frecuencia_label = font.render("Frecuencia llegada (s)", True, BLACK)
+    screen.blit(frecuencia_label, (panel_rect.x + 10, 390))
 
+    # Dibuja la barra
+    pygame.draw.rect(screen, BLACK, frecuencia_slider_rect)
+    pygame.draw.rect(screen, slider_color, frecuencia_slider_handle)
+
+    # Mostrar el valor actual
+    valor_frecuencia = font.render(str(frecuencia_slider_value), True, BLACK)
+    screen.blit(valor_frecuencia, (frecuencia_slider_rect.x + 35, frecuencia_slider_rect.y + 20))
 
 # Configuración de la simulación
 PRODUCT_RANGE = lambda: (1, producto_slider_value)
@@ -177,7 +194,8 @@ simulacion_pausada = False
 clientes_atendidos = 0  # Contador de clientes atendidos
 tiempos_espera = []  # Lista para registrar tiempos de espera
 clientes_saliendo = []  # Lista para los clientes que salen
-intervalo_clientes = 1.5  # tiempo entre clientes (en segundos)
+#intervalo_clientes = 1.5  # tiempo entre clientes (en segundos)
+frecuencia_llegada = 1.5 # segundos entre clientes (valor inicial)
 tiempo_ultimo_cliente = time.time()
 clientes_rechazados = 0 # Contador de clientes rechazados
 velocidad_simulacion = 1  # velocidad de la simulacion, x1 por defecto
@@ -385,7 +403,7 @@ while running:
     if simulacion_activa:
         if not simulacion_pausada:
             # Solo si no está pausada: generar clientes y actualizar cajeros
-            if time.time() - tiempo_ultimo_cliente >= intervalo_clientes / velocidad_simulacion:
+            if time.time() - tiempo_ultimo_cliente >= frecuencia_slider_value / velocidad_simulacion:
                 generar_cliente()
                 tiempo_ultimo_cliente = time.time()
             for cajero in cajeros:
@@ -450,6 +468,8 @@ while running:
                     tiempo_slider_dragging = True
                 if cola_slider_handle.collidepoint(event.pos):
                     cola_slider_dragging = True
+                if frecuencia_slider_handle.collidepoint(event.pos):
+                    frecuencia_slider_dragging = True
 
             # Boton dinamico
             if dynamic_button.collidepoint(event.pos):
@@ -495,6 +515,7 @@ while running:
             producto_slider_dragging = False
             tiempo_slider_dragging = False
             cola_slider_dragging = False
+            frecuencia_slider_dragging = False
 
         elif event.type == pygame.MOUSEMOTION:
             if slider_dragging:
@@ -519,6 +540,11 @@ while running:
                 cola_slider_handle.x = new_x
                 porcentaje = (cola_slider_handle.x - cola_slider_rect.x) / cola_slider_rect.width
                 cola_slider_value = max(1, min(8, round(1 + porcentaje * 7)))
+            if frecuencia_slider_dragging:
+                new_x = min(max(event.pos[0], frecuencia_slider_rect.x), frecuencia_slider_rect.x + frecuencia_slider_rect.width)
+                frecuencia_slider_handle.x = new_x
+                porcentaje = (frecuencia_slider_handle.x - frecuencia_slider_rect.x) / frecuencia_slider_rect.width
+                frecuencia_slider_value = round(0.5 + porcentaje * 2.5, 1)  # rango: 0.5 a 3.0
 
     pygame.display.flip()
     clock.tick(60)

@@ -180,7 +180,7 @@ clientes_saliendo = []  # Lista para los clientes que salen
 intervalo_clientes = 1.5  # tiempo entre clientes (en segundos)
 tiempo_ultimo_cliente = time.time()
 clientes_rechazados = 0 # Contador de clientes rechazados
-velocidad_simulacion = 1  # velocidad de la somuacion, x1 por defecto
+velocidad_simulacion = 1  # velocidad de la simulacion, x1 por defecto
 
 # variables para el cronometro
 start_time = None
@@ -401,13 +401,11 @@ while running:
                     cliente.destino_x = destino_x
                     cliente.destino_y = destino_y
                 cliente.mover()
-                #pygame.draw.rect(screen, cliente.color, (cliente.x, cliente.y, CUSTOMER_SIZE, CUSTOMER_SIZE))
                 # muestra la cantidad de productos en cada cliente
                 texto_productos = small_font.render(str(cliente.productos), True, BLACK)
                 texto_rect = texto_productos.get_rect(topright=(cliente.x + 45, cliente.y + 10))
                 screen.blit(cliente.image, (cliente.x, cliente.y))
                 screen.blit(texto_productos, texto_rect)
-
 
         # Dibujar cajeros
         for cajero in cajeros:
@@ -521,7 +519,6 @@ while running:
                 cola_slider_handle.x = new_x
                 porcentaje = (cola_slider_handle.x - cola_slider_rect.x) / cola_slider_rect.width
                 cola_slider_value = max(1, min(8, round(1 + porcentaje * 7)))
-
 
     pygame.display.flip()
     clock.tick(60)

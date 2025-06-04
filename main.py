@@ -92,6 +92,12 @@ frecuencia_slider_handle = pygame.Rect(frecuencia_slider_rect.x + 60, frecuencia
 frecuencia_slider_dragging = False
 frecuencia_slider_value = 1.5
 
+# Slider para tiempo máximo de espera en cola
+abandono_slider_rect = pygame.Rect(WIDTH - PANEL_WIDTH + 40, 500, 120, 10)
+abandono_slider_handle = pygame.Rect(abandono_slider_rect.x + 60, abandono_slider_rect.y - 5, 10, 20)
+abandono_slider_dragging = False
+abandono_tiempo_maximo = 30  # Valor por defecto en segundos
+
 #funcion para colorear imagen de cajero
 def tintar_imagen(imagen, color):
     copia = imagen.copy()
@@ -183,6 +189,16 @@ def dibujar_panel():
     valor_frecuencia = font.render(str(frecuencia_slider_value), True, BLACK)
     screen.blit(valor_frecuencia, (frecuencia_slider_rect.x + 35, frecuencia_slider_rect.y + 20))
 
+    # -------------------------------Slider tiempo de abandono-----------------------------------
+    abandono_label = font.render("Máx. Espera (s)", True, BLACK)
+    screen.blit(abandono_label, (panel_rect.x + 45, 470))
+
+    pygame.draw.rect(screen, BLACK, abandono_slider_rect)
+    pygame.draw.rect(screen, slider_color, abandono_slider_handle)
+
+    valor_abandono = font.render(str(abandono_tiempo_maximo), True, BLACK)
+    screen.blit(valor_abandono, (abandono_slider_rect.x + 40, abandono_slider_rect.y + 20))
+
 # Configuración de la simulación
 PRODUCT_RANGE = lambda: (1, producto_slider_value)
 CUSTOMER_SIZE = 30  # Tamaño de dibujado
@@ -205,6 +221,7 @@ clientes_rechazados = 0 # Contador de clientes rechazados
 velocidad_simulacion = 1  # velocidad de la simulacion, x1 por defecto
 distribuciones = ["Uniforme", "Exp."]
 modo_distribucion = 0  # Índice actual (0 = uniforme)
+clientes_abandonados = 0
 
 # variables para el cronometro
 start_time = None
@@ -275,7 +292,21 @@ class Cajero:
             cliente.destino_y = self.y + (60 - CUSTOMER_SIZE) // 2
 
     def actualizar(self):
-        global clientes_atendidos, tiempos_espera
+        global clientes_atendidos, tiempos_espera, clientes_abandonados
+
+        # Verificar abandono de clientes en la cola antes de atender
+        nuevos_clientes = deque()
+        for cliente in self.cola:
+            tiempo_espera = time.time() - cliente.tiempo_llegada
+            if tiempo_espera > abandono_tiempo_maximo:
+                cliente.destino_x = cliente.x  # Se va por arriba
+                cliente.destino_y = -CUSTOMER_SIZE - 10
+                clientes_saliendo.append(cliente)
+                clientes_abandonados += 1
+            else:
+                nuevos_clientes.append(cliente)
+        self.cola = nuevos_clientes
+
         if self.ocupado:
             now = time.time()
             if distribuciones[modo_distribucion] == "Uniforme":
@@ -497,6 +528,8 @@ while running:
                     frecuencia_slider_dragging = True
                 if cambio_distribucion_rect.collidepoint(event.pos) and not simulacion_activa:
                     modo_distribucion = (modo_distribucion + 1) % len(distribuciones)
+                if not simulacion_activa and abandono_slider_handle.collidepoint(event.pos):
+                    abandono_slider_dragging = True
 
             # Boton dinamico
             if dynamic_button.collidepoint(event.pos):
@@ -543,6 +576,7 @@ while running:
             tiempo_slider_dragging = False
             cola_slider_dragging = False
             frecuencia_slider_dragging = False
+            abandono_slider_dragging = False
 
         elif event.type == pygame.MOUSEMOTION:
             if slider_dragging:
@@ -553,7 +587,7 @@ while running:
                 slider_value = max(1, min(8, round(1 + porcentaje * 7)))
             if producto_slider_dragging and modo_distribucion == 0: #permite cambios si el modo es uniforme
                 new_x = min(max(event.pos[0], producto_slider_rect.x),
-                            producto_slider_rect.x + producto_slider_rect.width)
+                producto_slider_rect.x + producto_slider_rect.width)
                 producto_slider_handle.x = new_x
                 porcentaje = (producto_slider_handle.x - producto_slider_rect.x) / producto_slider_rect.width
                 producto_slider_value = max(1, min(100, round(1 + porcentaje * 99)))
@@ -572,6 +606,11 @@ while running:
                 frecuencia_slider_handle.x = new_x
                 porcentaje = (frecuencia_slider_handle.x - frecuencia_slider_rect.x) / frecuencia_slider_rect.width
                 frecuencia_slider_value = round(0.5 + porcentaje * 2.5, 1)  # rango: 0.5 a 3.0
+            if abandono_slider_dragging:
+                new_x = min(max(event.pos[0], abandono_slider_rect.x), abandono_slider_rect.x + abandono_slider_rect.width)
+                abandono_slider_handle.x = new_x
+                porcentaje = (abandono_slider_handle.x - abandono_slider_rect.x) / abandono_slider_rect.width
+                abandono_tiempo_maximo = max(5, min(60, round(5 + porcentaje * 55)))
 
     pygame.display.flip()
     clock.tick(60)

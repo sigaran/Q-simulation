@@ -113,6 +113,7 @@ def dibujar_panel():
     screen.blit(title, (panel_rect.x + 50, 30))
 
     slider_color = ALIZARIN if not simulacion_activa else GRAY
+    slider_color_productos = ALIZARIN if not simulacion_activa and modo_distribucion == 0 else GRAY
 
     # -------------------------------Slider de cajeros-----------------------------------
     # Etiqueta para slider
@@ -134,7 +135,7 @@ def dibujar_panel():
 
     # Dibuja la barra
     pygame.draw.rect(screen, BLACK, producto_slider_rect)
-    pygame.draw.rect(screen, slider_color, producto_slider_handle)
+    pygame.draw.rect(screen, slider_color_productos, producto_slider_handle)
 
     # Mostrar el valor actual
     valor_productos = font.render(str(producto_slider_value), True, BLACK)
@@ -142,7 +143,10 @@ def dibujar_panel():
 
     # -------------------------------Slider tiempo de servicio-----------------------------------
     # Etiqueta para tiempo por producto
-    tiempo_label = font.render("Tiempo x Producto (s)", True, BLACK)
+    if distribuciones[modo_distribucion] == "Uniforme":
+        tiempo_label = font.render("Tiempo x Producto (s)", True, BLACK)
+    else:
+        tiempo_label = font.render("Media de atención (s)", True, BLACK)
     screen.blit(tiempo_label, (panel_rect.x + 20, 230))
 
     # Dibuja la barra
@@ -189,16 +193,18 @@ stop_button = pygame.Rect(160, 20, 80, 30)
 velocidad_button = pygame.Rect(260, 20, 110, 30)
 simulacion_activa = False
 simulacion_pausada = False
+cambio_distribucion_rect = pygame.Rect(50, 60, 210, 30)
 
 # variables globales
 clientes_atendidos = 0  # Contador de clientes atendidos
 tiempos_espera = []  # Lista para registrar tiempos de espera
 clientes_saliendo = []  # Lista para los clientes que salen
-#intervalo_clientes = 1.5  # tiempo entre clientes (en segundos)
 frecuencia_llegada = 1.5 # segundos entre clientes (valor inicial)
 tiempo_ultimo_cliente = time.time()
 clientes_rechazados = 0 # Contador de clientes rechazados
 velocidad_simulacion = 1  # velocidad de la simulacion, x1 por defecto
+distribuciones = ["Uniforme", "Exp."]
+modo_distribucion = 0  # Índice actual (0 = uniforme)
 
 # variables para el cronometro
 start_time = None
@@ -214,8 +220,16 @@ class Cliente:
             random.randint(50, 255),  # Verde
             random.randint(50, 255)  # Azul
         )
-        self.productos = random.randint(*PRODUCT_RANGE())
-        self.tiempo_atencion = self.productos * tiempo_por_producto  # Depende de productos
+        
+        #self.tiempo_atencion = self.productos * tiempo_por_producto  # Depende de productos
+        if distribuciones[modo_distribucion] == "Uniforme":
+            self.productos = random.randint(*PRODUCT_RANGE())
+            self.tiempo_atencion = self.productos * tiempo_por_producto
+        elif distribuciones[modo_distribucion] == "Exp.":
+            self.productos = 0
+            media = 5 * tiempo_por_producto
+            self.tiempo_atencion = max(1, int(random.expovariate(1 / media)))
+
         self.x, self.y = 50, HEIGHT - (id + 1) * (CUSTOMER_SIZE + 10)  # Posición inicial en la cola
         self.tiempo_llegada = time.time()  # Marca el momento en que el cliente fue creado
         # para animar en la cola
@@ -264,11 +278,16 @@ class Cajero:
         global clientes_atendidos, tiempos_espera
         if self.ocupado:
             now = time.time()
-            if now - self.ultimo_tiempo >= tiempo_por_producto / velocidad_simulacion:
-                self.tiempo_restante -= tiempo_por_producto
-                if self.cliente_actual and self.cliente_actual.productos > 0:
-                    self.cliente_actual.productos -= 1
-                self.ultimo_tiempo = now
+            if distribuciones[modo_distribucion] == "Uniforme":
+                if now - self.ultimo_tiempo >= tiempo_por_producto / velocidad_simulacion:
+                    self.tiempo_restante -= tiempo_por_producto
+                    if self.cliente_actual and self.cliente_actual.productos > 0:
+                        self.cliente_actual.productos -= 1
+                    self.ultimo_tiempo = now
+            elif distribuciones[modo_distribucion] == "Exp.":
+                if now - self.ultimo_tiempo >= 1 / velocidad_simulacion:
+                    self.tiempo_restante -= 1
+                    self.ultimo_tiempo = now
 
             if self.tiempo_restante <= 0:
                 self.ocupado = False
@@ -343,6 +362,7 @@ def dibujar_botones():
     pygame.draw.rect(screen, boton_color, dynamic_button)
     pygame.draw.rect(screen, ALIZARIN if simulacion_activa else GRAY, stop_button)
     pygame.draw.rect(screen, EMERALD, velocidad_button)
+    pygame.draw.rect(screen, PETER_RIVER, cambio_distribucion_rect)
 
     #Muestra los clientes rechazados
     rechazados_text = font.render(f"Clientes rechazados: {clientes_rechazados}", True, BLACK)
@@ -353,6 +373,8 @@ def dibujar_botones():
     stop_text = font.render("Detener", True, BLACK)
     contador_text = font.render(f"Total clientes atendidos: {clientes_atendidos}", True, BLACK)
     vel_text = font.render(f"Velocidad x{velocidad_simulacion}", True, BLACK)
+    modo = distribuciones[modo_distribucion]
+    modo_text = font.render(f"Modo atención: {modo}", True, BLACK)
 
     # promediar tiempos de espara para dibujar texto
     if tiempos_espera:
@@ -371,6 +393,7 @@ def dibujar_botones():
     screen.blit(vel_text, (velocidad_button.x + 5, velocidad_button.y + 5))
     screen.blit(contador_text, (WIDTH - 450, 20))
     screen.blit(promedio_text, (WIDTH - 450, 50))
+    screen.blit(modo_text, (cambio_distribucion_rect.x + 5, cambio_distribucion_rect.y + 5))
 
     # Mostrar cronómetro
     if start_time:
@@ -419,11 +442,12 @@ while running:
                     cliente.destino_x = destino_x
                     cliente.destino_y = destino_y
                 cliente.mover()
-                # muestra la cantidad de productos en cada cliente
-                texto_productos = small_font.render(str(cliente.productos), True, BLACK)
-                texto_rect = texto_productos.get_rect(topright=(cliente.x + 45, cliente.y + 10))
                 screen.blit(cliente.image, (cliente.x, cliente.y))
-                screen.blit(texto_productos, texto_rect)
+                # muestra la cantidad de productos en cada cliente en modo uniforme
+                if distribuciones[modo_distribucion] == "Uniforme":
+                    texto_productos = small_font.render(str(cliente.productos), True, BLACK)
+                    texto_rect = texto_productos.get_rect(topright=(cliente.x + 45, cliente.y + 10))
+                    screen.blit(texto_productos, texto_rect)
 
         # Dibujar cajeros
         for cajero in cajeros:
@@ -438,10 +462,11 @@ while running:
                 cliente_rect = pygame.Rect(cliente.x, cliente.y, CUSTOMER_SIZE, CUSTOMER_SIZE)
                 screen.blit(cliente.image, (cliente.x, cliente.y)) #dibujar sprite cliente
 
-                # Mostrar productos restantes en esquina superior derecha del cliente
-                texto_productos = small_font.render(str(cliente.productos), True, BLACK)
-                texto_rect = texto_productos.get_rect(topright=(cliente.x + 55, cliente.y + 20))
-                screen.blit(texto_productos, texto_rect)
+                # Mostrar productos restantes en esquina superior derecha del cliente (en modo uniforme)
+                if distribuciones[modo_distribucion] == "Uniforme":
+                    texto_productos = small_font.render(str(cliente.productos), True, BLACK)
+                    texto_rect = texto_productos.get_rect(topright=(cliente.x + 55, cliente.y + 20))
+                    screen.blit(texto_productos, texto_rect)
 
         # Dibujar a los clientes saliendo
         for cliente in list(clientes_saliendo):  # Copia segura para eliminar durante el loop
@@ -462,7 +487,7 @@ while running:
             if not simulacion_activa:
                 if slider_handle.collidepoint(event.pos):
                     slider_dragging = True
-                if producto_slider_handle.collidepoint(event.pos):
+                if producto_slider_handle.collidepoint(event.pos) and modo_distribucion == 0: #True si no esta en modo Exponencial
                     producto_slider_dragging = True
                 if tiempo_slider_handle.collidepoint(event.pos):
                     tiempo_slider_dragging = True
@@ -470,6 +495,8 @@ while running:
                     cola_slider_dragging = True
                 if frecuencia_slider_handle.collidepoint(event.pos):
                     frecuencia_slider_dragging = True
+                if cambio_distribucion_rect.collidepoint(event.pos) and not simulacion_activa:
+                    modo_distribucion = (modo_distribucion + 1) % len(distribuciones)
 
             # Boton dinamico
             if dynamic_button.collidepoint(event.pos):
@@ -524,7 +551,7 @@ while running:
                 # Mapea la posición del slider a un valor entre 1 y 8
                 porcentaje = (slider_handle.x - slider_rect.x) / slider_rect.width
                 slider_value = max(1, min(8, round(1 + porcentaje * 7)))
-            if producto_slider_dragging:
+            if producto_slider_dragging and modo_distribucion == 0: #permite cambios si el modo es uniforme
                 new_x = min(max(event.pos[0], producto_slider_rect.x),
                             producto_slider_rect.x + producto_slider_rect.width)
                 producto_slider_handle.x = new_x

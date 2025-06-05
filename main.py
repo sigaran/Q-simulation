@@ -20,7 +20,7 @@ def resource_path(relative_path):
 pygame.init()
 
 # Configuración de pantalla
-WIDTH, HEIGHT = 1024, 680
+WIDTH, HEIGHT = 1024, 580
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Simulación de cola de clientes en supermercado")
 
@@ -211,6 +211,7 @@ simulacion_activa = False
 simulacion_pausada = False
 cambio_distribucion_rect = pygame.Rect(50, 60, 210, 30)
 modo_abandono_btn = pygame.Rect(275, 60, 140, 30)
+prioridad_button = pygame.Rect(430, 60, 130, 30)
 
 # variables globales
 clientes_atendidos = 0  # Contador de clientes atendidos
@@ -225,6 +226,7 @@ modo_distribucion = 0  # Índice actual (0 = uniforme)
 clientes_abandonados = 0
 modos_abandono = ["Fijo", "Prob."]
 modo_abandono_idx = 0  # por defecto: Fijo
+prioridad_activada = False
 
 # variables para el cronometro
 start_time = None
@@ -285,14 +287,20 @@ class Cajero:
 
     def atender_cliente(self):
         if self.cola and not self.ocupado:
-            cliente = self.cola.popleft()
+            if prioridad_activada:
+                # Atender al cliente con menos productos
+                cliente_prioritario = min(self.cola, key=lambda c: c.productos)
+                self.cola.remove(cliente_prioritario)
+            else:
+                # Atender al primero (FIFO)
+                cliente_prioritario = self.cola.popleft()
             self.ocupado = True
-            self.tiempo_restante = cliente.tiempo_atencion
-            self.cliente_actual = cliente
+            self.tiempo_restante = cliente_prioritario.tiempo_atencion
+            self.cliente_actual = cliente_prioritario
             self.ultimo_tiempo = time.time()
             # Mover al cliente al centro del cajero (animado)
-            cliente.destino_x = self.x + (60 - CUSTOMER_SIZE) // 2
-            cliente.destino_y = self.y + (60 - CUSTOMER_SIZE) // 2
+            cliente_prioritario.destino_x = self.x + (60 - CUSTOMER_SIZE) // 2
+            cliente_prioritario.destino_y = self.y + (60 - CUSTOMER_SIZE) // 2
 
     def actualizar(self):
         global clientes_atendidos, tiempos_espera, clientes_abandonados
@@ -401,6 +409,7 @@ def dibujar_botones():
     else:
         boton_texto = "Pausar"
         boton_color = CARROT
+    prioridad_color = EMERALD if prioridad_activada else GRAY
 
     #Muestra los clientes rechazados
     rechazados_text = font.render(f"Clientes rechazados: {clientes_rechazados}", True, BLACK)
@@ -416,6 +425,7 @@ def dibujar_botones():
     pygame.draw.rect(screen, EMERALD, velocidad_button)
     pygame.draw.rect(screen, PETER_RIVER, cambio_distribucion_rect)
     pygame.draw.rect(screen, PETER_RIVER, modo_abandono_btn)
+    pygame.draw.rect(screen, prioridad_color, prioridad_button)
 
     #Texto de los botones
     dynamic_text = font.render(boton_texto, True, BLACK)
@@ -425,6 +435,7 @@ def dibujar_botones():
     modo = distribuciones[modo_distribucion]
     modo_text = font.render(f"Modo atención: {modo}", True, BLACK)
     modoAbanodo_text = font.render(f"Abandono: {modos_abandono[modo_abandono_idx]}", True, BLACK)
+    prioridad_text = font.render("Prioridad: " + ("ON" if prioridad_activada else "OFF"), True, BLACK)
 
     # promediar tiempos de espara para dibujar texto
     if tiempos_espera:
@@ -445,6 +456,7 @@ def dibujar_botones():
     screen.blit(promedio_text, (WIDTH - 450, 35))
     screen.blit(modo_text, (cambio_distribucion_rect.x + 5, cambio_distribucion_rect.y + 5))
     screen.blit(modoAbanodo_text, (modo_abandono_btn.x + 5, modo_abandono_btn.y + 5))
+    screen.blit(prioridad_text, (prioridad_button.x + 10, prioridad_button.y + 5))
 
     # Mostrar cronómetro
     if start_time:
@@ -552,6 +564,8 @@ while running:
                     abandono_slider_dragging = True
                 if modo_abandono_btn.collidepoint(event.pos):
                     modo_abandono_idx = (modo_abandono_idx + 1) % len(modos_abandono)
+                elif prioridad_button.collidepoint(event.pos):
+                    prioridad_activada = not prioridad_activada
 
             # Boton dinamico
             if dynamic_button.collidepoint(event.pos):

@@ -5,7 +5,7 @@ Este proyecto es una simulación interactiva en Pygame que representa el comport
 ## 📦 Descargas
 
 Descomprimir y ejecutar
-[👉 Descarga directa (.zip)](https://github.com/sigaran/Q-simulation/releases/download/v1.0-beta/Q-Simulator.zip)
+[👉 Descarga directa (.zip)](https://github.com/sigaran/Q-simulation/releases/download/v1.0/Q-Simulation.exe)
 
 ## 🚀 Requisitos para desarrollo
 

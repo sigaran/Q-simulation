@@ -20,7 +20,7 @@ def resource_path(relative_path):
 pygame.init()
 
 # Configuración de pantalla
-WIDTH, HEIGHT = 1025, 576
+WIDTH, HEIGHT = 1024, 680
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Simulación de cola de clientes en supermercado")
 
@@ -210,6 +210,7 @@ velocidad_button = pygame.Rect(260, 20, 110, 30)
 simulacion_activa = False
 simulacion_pausada = False
 cambio_distribucion_rect = pygame.Rect(50, 60, 210, 30)
+modo_abandono_btn = pygame.Rect(275, 60, 140, 30)
 
 # variables globales
 clientes_atendidos = 0  # Contador de clientes atendidos
@@ -222,6 +223,8 @@ velocidad_simulacion = 1  # velocidad de la simulacion, x1 por defecto
 distribuciones = ["Uniforme", "Exp."]
 modo_distribucion = 0  # Índice actual (0 = uniforme)
 clientes_abandonados = 0
+modos_abandono = ["Fijo", "Prob."]
+modo_abandono_idx = 0  # por defecto: Fijo
 
 # variables para el cronometro
 start_time = None
@@ -293,18 +296,28 @@ class Cajero:
 
     def actualizar(self):
         global clientes_atendidos, tiempos_espera, clientes_abandonados
-
+        from random import random
         # Verificar abandono de clientes en la cola antes de atender
         nuevos_clientes = deque()
         for cliente in self.cola:
             tiempo_espera = time.time() - cliente.tiempo_llegada
-            if tiempo_espera > abandono_tiempo_maximo:
-                cliente.destino_x = cliente.x  # Se va por arriba
-                cliente.destino_y = -CUSTOMER_SIZE - 10
-                clientes_saliendo.append(cliente)
-                clientes_abandonados += 1
-            else:
-                nuevos_clientes.append(cliente)
+            abandono_prob = 0
+            if modos_abandono[modo_abandono_idx] == "Fijo":
+                if tiempo_espera > abandono_tiempo_maximo:
+                    cliente.destino_x = cliente.x  # Se va por arriba
+                    cliente.destino_y = -CUSTOMER_SIZE - 10
+                    clientes_saliendo.append(cliente)
+                    clientes_abandonados += 1
+                    continue
+            else:  # Probabilístico
+                abandono_prob = min(1.0, (tiempo_espera / abandono_tiempo_maximo) ** 3)
+                if random() < abandono_prob:
+                    cliente.destino_x = cliente.x
+                    cliente.destino_y = -CUSTOMER_SIZE - 10
+                    clientes_saliendo.append(cliente)
+                    clientes_abandonados += 1
+                    continue
+            nuevos_clientes.append(cliente)
         self.cola = nuevos_clientes
 
         if self.ocupado:
@@ -389,15 +402,20 @@ def dibujar_botones():
         boton_texto = "Pausar"
         boton_color = CARROT
 
+    #Muestra los clientes rechazados
+    rechazados_text = font.render(f"Clientes rechazados: {clientes_rechazados}", True, BLACK)
+    screen.blit(rechazados_text, (WIDTH - 450, 60))
+
+    #Muestra los clientes que abandonaron la cola
+    abandono_text = font.render(f"Clientes abandonaron: {clientes_abandonados}", True, BLACK)
+    screen.blit(abandono_text, (WIDTH - 450, 85))
+
     # Para dibujar botones
     pygame.draw.rect(screen, boton_color, dynamic_button)
     pygame.draw.rect(screen, ALIZARIN if simulacion_activa else GRAY, stop_button)
     pygame.draw.rect(screen, EMERALD, velocidad_button)
     pygame.draw.rect(screen, PETER_RIVER, cambio_distribucion_rect)
-
-    #Muestra los clientes rechazados
-    rechazados_text = font.render(f"Clientes rechazados: {clientes_rechazados}", True, BLACK)
-    screen.blit(rechazados_text, (WIDTH - 450, 80))
+    pygame.draw.rect(screen, PETER_RIVER, modo_abandono_btn)
 
     #Texto de los botones
     dynamic_text = font.render(boton_texto, True, BLACK)
@@ -406,6 +424,7 @@ def dibujar_botones():
     vel_text = font.render(f"Velocidad x{velocidad_simulacion}", True, BLACK)
     modo = distribuciones[modo_distribucion]
     modo_text = font.render(f"Modo atención: {modo}", True, BLACK)
+    modoAbanodo_text = font.render(f"Abandono: {modos_abandono[modo_abandono_idx]}", True, BLACK)
 
     # promediar tiempos de espara para dibujar texto
     if tiempos_espera:
@@ -422,9 +441,10 @@ def dibujar_botones():
     screen.blit(dynamic_text, (dynamic_button.x + 5, dynamic_button.y + 5))
     screen.blit(stop_text, (stop_button.x + 10, stop_button.y + 5))
     screen.blit(vel_text, (velocidad_button.x + 5, velocidad_button.y + 5))
-    screen.blit(contador_text, (WIDTH - 450, 20))
-    screen.blit(promedio_text, (WIDTH - 450, 50))
+    screen.blit(contador_text, (WIDTH - 450, 10))
+    screen.blit(promedio_text, (WIDTH - 450, 35))
     screen.blit(modo_text, (cambio_distribucion_rect.x + 5, cambio_distribucion_rect.y + 5))
+    screen.blit(modoAbanodo_text, (modo_abandono_btn.x + 5, modo_abandono_btn.y + 5))
 
     # Mostrar cronómetro
     if start_time:
@@ -483,7 +503,7 @@ while running:
         # Dibujar cajeros
         for cajero in cajeros:
             cajero_text = font.render(f"Cajero {cajero.id + 1}", True, BLACK)
-            screen.blit(cajero_text, (cajero.x - 10, cajero.y - 25))
+            screen.blit(cajero_text, (cajero.x - 10, cajero.y - 10))
             screen.blit(cajero.sprite, (cajero.x, cajero.y)) #dibujar sprite cajero
 
             # Dibujar cliente sobre el cajero si está siendo atendido
@@ -530,6 +550,8 @@ while running:
                     modo_distribucion = (modo_distribucion + 1) % len(distribuciones)
                 if not simulacion_activa and abandono_slider_handle.collidepoint(event.pos):
                     abandono_slider_dragging = True
+                if modo_abandono_btn.collidepoint(event.pos):
+                    modo_abandono_idx = (modo_abandono_idx + 1) % len(modos_abandono)
 
             # Boton dinamico
             if dynamic_button.collidepoint(event.pos):
@@ -557,6 +579,7 @@ while running:
                 simulacion_activa = False
                 simulacion_pausada = False
                 clientes_rechazados = 0 # Reinicia los clientes rechazados
+                clientes_abandonados = 0 # Reinicia los clientes abandonados
                 clientes_atendidos = 0  # Reinicia los clientes atendidos
                 tiempos_espera = []  # Reinicia los tiempos de espera también
                 cajeros = []
